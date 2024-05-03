@@ -1,0 +1,174 @@
+Presentado por Diego Alejandro Naranjo Moncada
+1 - Se pide el nombre de un estudiante por pantalla; decir cuántos estudiantes tienen el
+	mismo nombre, en caso de que no existan avisar.
+RT// 
+CREATE OR REPLACE FUNCTION 
+nombre_per(nombre_persona estudiantes.nombre%type)
+RETURN VARCHAR2
+IS
+    cant_estudents number;
+    BEGIN
+        SELECT count(*) into cant_estudents FROM estudiantes WHERE nombre = nombre_persona;
+        IF cant_estudents=0 THEN
+            dbms_output.put_line('No existen Estudiantes con el nombre:'||nombre_persona);
+        END IF;
+    RETURN cant_estudents;
+END;
+-----------------------AQUI MUESTRA INFORMACION DE LOS ESTUDIANTES
+select nombre_per('000') from dual;
+CREATE OR REPLACE FUNCTION 
+nombre_per(nombre_persona estudiantes.nombre%type)
+RETURN SYS_REFCURSOR
+IS
+    cu_cursor SYS_REFCURSOR;
+    BEGIN 
+        OPEN cu_cursor FOR SELECT * FROM estudiantes 
+        WHERE nombre = nombre_persona;
+        return cu_cursor;
+END;
+---EL SYS_REF CURSOR MUESTRA DE UNA FORMA MUY FEA
+	SELECT nombre_per('David') from dual;
+
+--NO SE SI ESTO SE PUEDA HACER EN LA VIDA REAL PERO SE PUEDE MOSTRAR ASI TAMBIE 
+	VAR mostrar refcursor
+	exec :mostrar:=nombre_per('David');
+	print mostr
+
+2 Crear un procedimiento que actualice los valores de dicha tabla.
+
+---Para hacer el segundo primero creamos un bloque anonimo que guarde recopile toda la informacion de especialidades y las ingrese
+DECLARE
+var_especialidad varchar(50);
+var_nombre varchar(50);
+var_creditos varchar(50);
+BEGIN
+    FOR i IN (SELECT especialidad as especialidad ,COUNT(nombre) AS nombre , sum(creditos)AS creditos FROM estudiantes GROUP BY ESPECIALIDAD) LOOP
+        INSERT INTO ESPECIALIDADES ( ESPECIALIDAD,TOTALCREDITOS,TOTALESTUDIANTES) 
+        VALUES(i.especialidad , i.nombre , i.creditos);
+    END LOOP;
+END;
+---- AHORA CREAMOS UN PROCEDIMIENTO PARA ACTUALIZAR DATOS DE LA TABLA ESPECIALIDADES 
+CREATE OR REPLACE PROCEDURE p_modEspe(
+    var_especialidad especialidades.especialidad%type,
+    var_totalCreditos especialidades.totalcreditos%type,
+    var_totalEstudiantes especialidades.totalestudiantes%type
+)
+AS 
+BEGIN 
+    UPDATE ESPECIALIDADES SET TOTALCREDITOS=var_totalCreditos, 
+	TOTALESTUDIANTES=var_totalEstudiantes WHERE ESPECIALIDAD =var_especialidad;
+end p_modEspe;
+
+3 - Crear un procedimiento que permita matricular a un estudiante en un curso.
+RT//
+CREATE OR REPLACE PROCEDURE insEstudiant(
+    var_idEstudiantes MATRICULAS.IDESTUDIANTE%TYPE,
+    var_departamento MATRICULAS.DEPARTAMENTO%TYPE,
+    var_ncurso MATRICULAS.ncurso%TYPE,
+    var_grado MATRICULAS.grado%TYPE
+)
+as 
+    begin 
+        INSERT INTO MATRICULAS (idestudiante, departamento, ncurso, grado) 
+        VALUES (var_idEstudiantes,var_departamento,var_ncurso,var_grado);
+    END insEstudiant;
+
+execute insEstudiant(91, 'HIS', 106, 'A');
+4 Mostrar por pantalla al estudiante con el ID mayor y al estudiante con el ID menor.
+
+RT//
+CREATE OR REPLACE procedure maxAndMin
+
+is 
+    maximo number;
+    minimo number;
+begin 
+        select MAX(ID), MIN(ID)INTO maximo,minimo FROM ESTUDIANTES ;
+        DBMS_OUTPUT.PUT_LINE('Máximo: ' || maximo);
+        DBMS_OUTPUT.PUT_LINE('Mínimo: ' || minimo);
+END maxAndMin;
+
+EXECUTE maxAndMin;
+5 - Crear un trigger que garantice que un estudiante no va tener menos de 6 créditos ni
+más de 15.
+
+CREATE OR REPLACE TRIGGER conditionCreditos
+befOre insert or update 
+On ESTUDIANTES
+FOR EACH ROW
+    BEGIN
+        IF (:NEW.CREDITOS>15 OR :NEW.CREDITOS<6) THEN
+               RAISE_APPLICATION_ERROR(-20001, 'Los créditos no pueden ser menores de 6 ni mayores de 15');
+            END IF;
+    END;
+6 6 - Crear un procedimiento que tome a todos los estudiantes de deportes y les aumente
+2 créditos, en caso de no existir ninguno no hacer nada
+CREATE OR REPLACE PROCEDURE aumentoCredito
+AS 
+    BEGIN
+        UPDATE ESTUDIANTES SET CREDITOS=CREDITOS+2 WHERE ESPECIALIDAD='Deportes';
+END aumentoCredito;
+EXECUTE aumentoCredito;
+/*8 - Determinar el nivel poblacional de las matrículas de cursos, ósea: “contar cuantas
+matrículas tiene cada curso” clasificar en:
+● Baja: de 0 a 10 estudiantes.
+● Media: de 11 a 20 estudiantes.
+● Alta: más de 21 estudiantes
+*/
+
+create or replace procedure contar_matriculas
+as
+begin
+for i in (SELECT count (NCURSO) as var_1,ncurso FROM matriculas GROUP BY NCURSO) loop
+case 
+when i.var_1>=0 and i.var_1<=10 then
+dbms_output.put_line('CURSO: '||i.ncurso||' |NUMERO_DE_MATRICULAS: '||i.var_1||' |NIVEL POBLACIONAL: BAJO');
+
+when i.var_1>=11 and i.var_1<=20 then
+dbms_output.put_line('CURSO: '||i.ncurso||' |NUMERO_DE_MATRICULAS: '||i.var_1||' |NIVEL POBLACIONAL: MEDIO');
+
+when i.var_1>=21 then
+dbms_output.put_line('CURSO: '||i.ncurso||' |NUMERO_DE_MATRICULAS: '||i.var_1||' |NIVEL POBLACIONAL: ALTO');
+end case;
+end loop;
+end;
+
+execute contar_matriculas();
+
+
+//
+/*7 - crear una función que retorne el futuro correo electrónico del estudiante, el correo
+debe de ser:
+● Primeras 2 letras del nombre del estudiante.
+● punto.
+● Primeras 2 letras del apellido.
+● guión medio.
+● Año en curso y luego el id del estudiante.
+● terminará en ‘@colegio.com’
+ejemplo: estudiante ID 7:
+7 Barbara Buitrago Economia 5
+Su correo:
+ba.bu-20247@colegio.com
+Nota: en caso de que el estudiante no exista avisar.
+*/
+CREATE OR REPLACE FUNCTION CORREO_EST(estudiante_id estudiantes.id%type)
+RETURN VARCHAR
+IS
+var_nombre estudiantes.nombre%type;
+var_apellido estudiantes.apellido%type;
+var_3 number;
+BEGIN
+select LOWER(nombre) into var_nombre from estudiantes where id= estudiante_id;
+select LOWER(apellido) into var_apellido from estudiantes where id= estudiante_id;
+var_3:=EXTRACT(YEAR FROM SYSDATE);
+if
+var_nombre IS NOT NULL AND var_apellido IS NOT NULL THEN
+return SUBSTR(var_nombre,1,2)||'.'||SUBSTR(var_apellido,1,2)||'-'||var_3||estudiante_id||'@colegio.com';
+end if;
+exception
+when no_data_found then
+return 'Estudiante no encontrado';
+END;
+
+select CORREO_EST(87) from dual;
+
